@@ -1,0 +1,27 @@
+{
+  "name": "moneo",
+  "version": "1.0.0",
+  "description": "Mongoose Neo4J adapter",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "keywords": [
+    "mongoose",
+    "mongodb",
+    "neo4j"
+  ],
+  "author": "srfrnk@gmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "mongoose": "^4.0.0",
+    "neo4j": "^2.0.0-RC1"
+  },
+  "devDependencies": {
+    "async": "^0.9.0",
+    "gulp": "^3.8.11",
+    "gulp-jasmine": "^2.0.0",
+    "jasmine": "^2.2.1",
+    "mongoose-mock": "^0.4.0"
+  }
+}
