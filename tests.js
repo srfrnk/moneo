@@ -1,3 +1,8 @@
+/*global describe*/
+/*global it*/
+/*global afterAll*/
+/*global beforeAll*/
+
 var async = require("async");
 var mongoose = require('mongoose');
 var neo4j = require("neo4j");
@@ -5,7 +10,6 @@ var moneo = require("./index");
 
 describe("moneo", function () {
     var PersonSchema, PersonModel, ClassSchema, ClassModel;
-
 
     beforeAll(function () {
         mongoose.connect('mongodb://localhost/test');
