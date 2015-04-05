@@ -44,7 +44,55 @@ describe("moneo", function () {
         expect(!!PersonModel.cypherQuery).toBeTruthy();
     });
 
-    it("saves", function (done) {
+    it("should save objects witout relations", function (done) {
+        var person1 = new PersonModel();
+        person1.firstName = "Neil";
+        person1.lastName = "Young";
+
+        var person2 = new PersonModel();
+        person2.firstName = "Lynard";
+        person2.lastName = "Skynard";
+
+        var class1=new ClassModel();
+        class1.title="Rock'nRoll 101";
+
+        async.series([person1.save,person2.save,class1.save], function (err, res) {
+            expect(person1._neo4j).toBeTruthy();
+            expect(person2._neo4j).toBeTruthy();
+            expect(class1._neo4j).toBeTruthy();
+
+            expect(person1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+            expect(person2._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+            expect(class1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+
+            done();
+        });
+    });
+
+    it('should create graph reps for simple DBRef property',function(done){
+        var person1 = new PersonModel();
+        person1.firstName = "Neil";
+        person1.lastName = "Young";
+
+        var class1=new ClassModel();
+        class1.title="Rock'nRoll 101";
+        class1.teacher=person1;
+
+        async.series([person1.save,class1.save], function (err, res) {
+            expect(person1._neo4j).toBeTruthy();
+            expect(class1._neo4j).toBeTruthy();
+
+            expect(person1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+            expect(class1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+
+            expect(class1.teacher._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+            expect(class1.teacher._id).toBe(person1._id);
+
+            done();
+        });
+    });
+
+    xit("saves", function (done) {
         var person1 = new PersonModel();
         person1.firstName = "Neil";
         person1.lastName = "Young";
@@ -67,6 +115,11 @@ describe("moneo", function () {
             expect(person1._neo4j).toBeTruthy();
             expect(person2._neo4j).toBeTruthy();
             expect(class1._neo4j).toBeTruthy();
+
+            expect(person1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+            expect(person2._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+            expect(class1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+
             done();
         });
     });
