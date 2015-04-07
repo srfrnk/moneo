@@ -6,32 +6,57 @@
 var async = require("async");
 var mongoose = require('mongoose');
 var neo4j = require("neo4j");
+
+/*
+mongoose.set('debug', function (coll, method, query, doc, options) {
+    console.log();
+    console.log(coll, method, query, doc, options);
+});
+*/
+
 var moneo = require("./index");
 
 describe("moneo", function () {
     var PersonSchema, PersonModel, ClassSchema, ClassModel;
+    var graphDb;
 
-    beforeAll(function () {
+    beforeAll(function (done) {
         mongoose.connect('mongodb://localhost/test');
+        graphDb = new neo4j.GraphDatabase({url: 'http://localhost:7474'});
+        async.series([
+                function (next) {
+                    graphDb.cypher({query: "match (n) delete n"}, next);
+                },
+                function (next) {
+                    graphDb.cypher({query: "match [r] delete r"}, next);
+                }],
+            done);
     });
 
     afterAll(function () {
         mongoose.disconnect();
     });
 
+
+    beforeEach(function () {
+    });
+
+    afterEach(function () {
+    });
+
     PersonSchema = mongoose.Schema({
         firstName: String,
         lastName: String,
-        takenClasses:[{
-            class:{type: mongoose.Schema.ObjectId, ref: 'Class'},
-            grade:Number,
-            year:Number
+        takenClasses: [{
+            class: {type: mongoose.Schema.ObjectId, ref: 'Class'},
+            grade: Number,
+            year: Number
         }]
     });
 
     ClassSchema = mongoose.Schema({
         title: String,
-        teacher:{type: mongoose.Schema.ObjectId, ref: 'Person'}
+        teacher: {type: mongoose.Schema.ObjectId, ref: 'Person'}
     });
 
     PersonSchema.plugin(moneo);
@@ -44,7 +69,7 @@ describe("moneo", function () {
         expect(!!PersonModel.cypherQuery).toBeTruthy();
     });
 
-    it("should save objects witout relations", function (done) {
+    it("should save objects without relations", function (done) {
         var person1 = new PersonModel();
         person1.firstName = "Neil";
         person1.lastName = "Young";
@@ -53,10 +78,10 @@ describe("moneo", function () {
         person2.firstName = "Lynard";
         person2.lastName = "Skynard";
 
-        var class1=new ClassModel();
-        class1.title="Rock'nRoll 101";
+        var class1 = new ClassModel();
+        class1.title = "Rock'nRoll 101";
 
-        async.series([person1.save,person2.save,class1.save], function (err, res) {
+        async.series([person1.save, person2.save, class1.save], function (err, res) {
             expect(person1._neo4j).toBeTruthy();
             expect(person2._neo4j).toBeTruthy();
             expect(class1._neo4j).toBeTruthy();
@@ -65,20 +90,33 @@ describe("moneo", function () {
             expect(person2._id instanceof mongoose.Types.ObjectId).toBeTruthy();
             expect(class1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
 
-            done();
+            done(err);
         });
     });
 
-    it('should create graph reps for simple DBRef property',function(done){
+    it("should save objects once", function (done) {
         var person1 = new PersonModel();
         person1.firstName = "Neil";
         person1.lastName = "Young";
 
-        var class1=new ClassModel();
-        class1.title="Rock'nRoll 101";
-        class1.teacher=person1;
+        async.series([person1.save, person1.save, function (next) {
+            graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n'}, next);
+        }], function (err, res) {
+            expect(res[2].length).toBe(1);
+            done(err);
+        });
+    });
 
-        async.series([person1.save,class1.save], function (err, res) {
+    it('should create graph reps for simple DBRef property', function (done) {
+        var person1 = new PersonModel();
+        person1.firstName = "Neil";
+        person1.lastName = "Young";
+
+        var class1 = new ClassModel();
+        class1.title = "Rock'nRoll 101";
+        class1.teacher = person1;
+
+        async.series([person1.save, class1.save], function (err, res) {
             expect(person1._neo4j).toBeTruthy();
             expect(class1._neo4j).toBeTruthy();
 
@@ -92,7 +130,8 @@ describe("moneo", function () {
         });
     });
 
-    xit("saves", function (done) {
+/*
+    it("saves", function (done) {
         var person1 = new PersonModel();
         person1.firstName = "Neil";
         person1.lastName = "Young";
@@ -101,17 +140,17 @@ describe("moneo", function () {
         person2.firstName = "Lynard";
         person2.lastName = "Skynard";
 
-        var class1=new ClassModel();
-        class1.title="Rock'nRoll 101";
-        class1.teacher=person2;
+        var class1 = new ClassModel();
+        class1.title = "Rock'nRoll 101";
+        class1.teacher = person2;
 
-        person1.takenClasses=[{
-            class:class1,
-            grade:60,
-            year:1969
+        person1.takenClasses = [{
+            class: class1,
+            grade: 60,
+            year: 1969
         }];
 
-        async.series([person1.save,person2.save,class1.save], function (err, res) {
+        async.series([person1.save, person2.save, class1.save], function (err, res) {
             expect(person1._neo4j).toBeTruthy();
             expect(person2._neo4j).toBeTruthy();
             expect(class1._neo4j).toBeTruthy();
@@ -123,4 +162,5 @@ describe("moneo", function () {
             done();
         });
     });
+*/
 });
