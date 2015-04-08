@@ -103,8 +103,9 @@ describe("moneo", function () {
             graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n'}, next);
         }], function (err, res) {
             expect(err).toBeUndefined();
-            expect(res[2]).not.toBeUndefined();
-            expect(res[2].length).toBe(1);
+            var nodes = res[2];
+            expect(nodes).toBeDefined();
+            expect(nodes.length).toBe(1);
             done(err);
         });
     });
