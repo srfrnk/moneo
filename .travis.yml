@@ -4,4 +4,17 @@ node_js:
   - "0.10"
 services:
   - mongodb
-  - neo4j
+env:
+     - DEBUG=neo4j
+jdk:
+    - oraclejdk7
+
+matrix:
+    allow_failures:
+        - node_js: "0.11"
+
+before_install:
+    # install Neo4j locally:
+    - wget dist.neo4j.org/neo4j-community-2.2.0-unix.tar.gz
+    - tar -xzf neo4j-community-2.2.0-unix.tar.gz
+    - neo4j-community-2.2.0/bin/neo4j start
