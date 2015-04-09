@@ -7,12 +7,10 @@ var async = require("async");
 var mongoose = require('mongoose');
 var neo4j = require("neo4j");
 
-/*
-mongoose.set('debug', function (coll, method, query, doc, options) {
-    console.log();
-    console.log(coll, method, query, doc, options);
-});
-*/
+ mongoose.set('debug', function (coll, method, query, doc, options) {
+ console.log();
+ console.log(coll, method, query, doc, options);
+ });
 
 var moneo = require("./index");
 
@@ -45,8 +43,10 @@ describe("moneo", function () {
     });
 
     PersonSchema = mongoose.Schema({
-        firstName: String,
-        lastName: String,
+        firstName: {type:String,nodeProperty:true},
+        lastName: {type:String,nodeProperty:true},
+        mongoSpecificValue1: {type:String,nodeProperty:false},
+        mongoSpecificValue2: String,
         takenClasses: [{
             class: {type: mongoose.Schema.ObjectId, ref: 'Class'},
             grade: Number,
@@ -55,8 +55,8 @@ describe("moneo", function () {
     });
 
     ClassSchema = mongoose.Schema({
-        title: String,
-        teacher: {type: mongoose.Schema.ObjectId, ref: 'Person'}
+        title: {type:String,nodeProperty:true},
+        teacher: {type: mongoose.Schema.ObjectId, ref: 'Person',relName:"Taught By"}
     });
 
     PersonSchema.plugin(moneo);
@@ -94,20 +94,7 @@ describe("moneo", function () {
         });
     });
 
-    it("should save objects once", function (done) {
-        var person1 = new PersonModel();
-        person1.firstName = "Neil";
-        person1.lastName = "Young";
-
-        async.series([person1.save, person1.save, function (next) {
-            graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n'}, next);
-        }], function (err, res) {
-            expect(res[2].length).toBe(1);
-            done(err);
-        });
-    });
-
-    it('should create graph reps for simple DBRef property', function (done) {
+    it('should save simple DBRef property', function (done) {
         var person1 = new PersonModel();
         person1.firstName = "Neil";
         person1.lastName = "Young";
@@ -130,37 +117,84 @@ describe("moneo", function () {
         });
     });
 
-/*
-    it("saves", function (done) {
+    it("should create node objects once per document", function (done) {
         var person1 = new PersonModel();
         person1.firstName = "Neil";
         person1.lastName = "Young";
 
-        var person2 = new PersonModel();
-        person2.firstName = "Lynard";
-        person2.lastName = "Skynard";
+        async.series([person1.save, person1.save, function (next) {
+            graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n'}, next);
+        }], function (err, res) {
+            expect(res[2].length).toBe(1);
+            done(err);
+        });
+    });
+
+    it("should create node with props", function (done) {
+        var person1 = new PersonModel();
+        person1.firstName = "Neil";
+        person1.lastName = "Young";
+        person1.mongoSpecificValue1 = "mongo 1";
+        person1.mongoSpecificValue2 = "mongo 2";
+
+        async.series([person1.save, function (next) {
+            graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n limit 1'}, next);
+        }], function (err, res) {
+            var node=res[1][0].n;
+            expect(node.properties.firstName).toBe('Neil');
+            expect(node.properties.lastName).toBe('Young');
+            done(err);
+        });
+    });
+
+    it('should create graph reps for simple DBRef property', function (done) {
+        var person1 = new PersonModel();
+        person1.firstName = "Neil";
+        person1.lastName = "Young";
 
         var class1 = new ClassModel();
         class1.title = "Rock'nRoll 101";
-        class1.teacher = person2;
+        class1.teacher = person1;
 
-        person1.takenClasses = [{
-            class: class1,
-            grade: 60,
-            year: 1969
-        }];
-
-        async.series([person1.save, person2.save, class1.save], function (err, res) {
-            expect(person1._neo4j).toBeTruthy();
-            expect(person2._neo4j).toBeTruthy();
-            expect(class1._neo4j).toBeTruthy();
-
-            expect(person1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
-            expect(person2._id instanceof mongoose.Types.ObjectId).toBeTruthy();
-            expect(class1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
-
+        async.series([person1.save, class1.save, function (next) {
+            graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'})-[r:Taught_By]-(c:Class) return n,r,c'}, next);
+        }], function (err, res) {
+            console.log(err);
+            expect(res[2].length).toBe(1);
             done();
         });
     });
-*/
+    /*
+     it("saves", function (done) {
+     var person1 = new PersonModel();
+     person1.firstName = "Neil";
+     person1.lastName = "Young";
+
+     var person2 = new PersonModel();
+     person2.firstName = "Lynard";
+     person2.lastName = "Skynard";
+
+     var class1 = new ClassModel();
+     class1.title = "Rock'nRoll 101";
+     class1.teacher = person2;
+
+     person1.takenClasses = [{
+     class: class1,
+     grade: 60,
+     year: 1969
+     }];
+
+     async.series([person1.save, person2.save, class1.save], function (err, res) {
+     expect(person1._neo4j).toBeTruthy();
+     expect(person2._neo4j).toBeTruthy();
+     expect(class1._neo4j).toBeTruthy();
+
+     expect(person1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+     expect(person2._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+     expect(class1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+
+     done();
+     });
+     });
+     */
 });

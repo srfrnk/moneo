@@ -34,11 +34,11 @@ module.exports = function (schema, options) {
         next();
     });
 
-    schema.post('save', function (doc, next) {
-        var props = {};
-        var propsStr = Object.keys(props).map(function (key) {
+    function createPropString(props, varName) {
+        return Object.keys(props).map(function (key) {
             var val = props[key];
-            if (val instanceof String) {
+            if (val instanceof String || typeof val === 'string') {
+                val = val.replace('\'', '\\\'');
                 val = '\'' + val + '\'';
             }
             else if (val instanceof Object) {
@@ -50,22 +50,104 @@ module.exports = function (schema, options) {
             else {
                 val = val.toString();
             }
-            return 'n.' + key.toString() + '=' + val;
+            return varName + '.' + key.toString() + '=' + val;
         }).join(',');
+    }
 
-        graphDb.cypher({
-                query: 'merge (n:' + doc.constructor.modelName + '{' +
-                'mongoId:\'' + doc._id.toHexString() + '\',' +
-                'mongoCol:\'' + doc.constructor.collection.name + '\',' +
-                'mongoModel:\'' + doc.constructor.modelName + '\'' +
+    function normalizeType(type) {
+        return type.replace(/[\s-]/g,'_');
+    }
+
+    function createNode(type, mongoId, mongoCol, mongoModel, props, next) {
+        var propsStr = createPropString(props, 'n');
+        return graphDb.cypher({
+                query: 'merge (n:' + normalizeType(type) + '{' +
+                'mongoId:\'' + mongoId.toHexString() + '\',' +
+                'mongoCol:\'' + mongoCol + '\',' +
+                'mongoModel:\'' + mongoModel + '\'' +
                 '}' + ' )' +
                 (propsStr.length > 0 ? (' on create set ' + propsStr) : '') +
                 (propsStr.length > 0 ? (' on match set ' + propsStr) : '') +
                 ' return n'
             },
-            function (err) {
-                next(err)
+            function (err, result) {
+                next(err, result)
             });
+    }
+
+    function createRelation(type, mongoId1, mongoId2, props, next) {
+        var propsStr = createPropString(props, 'r');
+        return graphDb.cypher({
+                query: 'match ' +
+                '(n {' + 'mongoId:\'' + mongoId1.toHexString() + '\'' + '}' + ' ),' +
+                '(m {' + 'mongoId:\'' + mongoId2.toHexString() + '\'' + '}' + ' )' +
+                'merge (n)-[r:' + normalizeType(type) + ']->(m)' +
+                (propsStr.length > 0 ? (' on create set ' + propsStr) : '') +
+                (propsStr.length > 0 ? (' on match set ' + propsStr) : '') +
+                ' return r'
+            },
+            function (err, result) {
+                next(err, result)
+            });
+    }
+
+    function findNode(mongoId, next) {
+        return graphDb.cypher({
+                query: 'match (n {' +
+                'mongoId:\'' + mongoId.toHexString() + '\'' +
+                '}' + ' )' +
+                'return n limit 1'
+            },
+            function (err, result) {
+                if (!err && result && result.length > 0) {
+                    next(null, result[0]);
+                }
+                else {
+                    next(err, null);
+                }
+            });
+    }
+
+    function getProperties() {
+        var props = [];
+        schema.eachPath(function (name, type) {
+            props.push(type);
+        });
+        return props;
+    }
+
+    schema.post('save', function (doc, next) {
+        var properties = getProperties();
+
+        async.series([
+            function (next) {
+                //Merge node with params:
+                var docProps = properties.filter(function (prop) {
+                    return !!prop.options.nodeProperty;
+                }).map(function (prop) {
+                    return prop.path;
+                }).reduce(function (obj, prop) {
+                    obj[prop] = doc._doc[prop];
+                    return obj;
+                }, {});
+                createNode(doc.constructor.modelName, doc._id, doc.constructor.collection.name, doc.constructor.modelName, docProps, next);
+            },
+            function (next) {
+                //Merge relations:
+                var refs = properties.filter(function (prop) {
+                    return !!prop.options.ref;
+                }).map(function (prop) {
+                    return {path: prop.path, name: prop.options.relName || "Relation", value: doc._doc[prop.path]};
+                }).filter(function (ref) {
+                    return !!ref.value;
+                });
+
+                async.mapSeries(refs, function (ref, next) {
+                    var value = ref.value instanceof mongoose.Types.ObjectId ? ref.value : ref.value._id;
+                    createRelation(ref.name,doc._id,value,{},next);
+                }, next);
+            }
+        ], next);
     });
 
     schema.pre('insert', function (next) {
