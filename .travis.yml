@@ -18,4 +18,5 @@ before_install:
     - wget dist.neo4j.org/neo4j-community-2.2.0-unix.tar.gz
     - tar -xzf neo4j-community-2.2.0-unix.tar.gz
     - cat neo4j-community-2.2.0/conf/neo4j-server.properties | sed '$a/dbms.security.auth_enabled=false' > neo4j-community-2.2.0/conf/neo4j-server.properties
+    - cat neo4j-community-2.2.0/conf/neo4j-server.properties
     - neo4j-community-2.2.0/bin/neo4j start
