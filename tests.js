@@ -104,7 +104,7 @@ describe("moneo", function () {
         }], function (err, res) {
             expect(err).toBeUndefined();
             var nodes = res[2];
-            expect(nodes).toBeDefined();
+            console.log(JSON.stringify(nodes));
             expect(nodes.length).toBe(1);
             done(err);
         });
