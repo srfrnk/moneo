@@ -102,9 +102,8 @@ describe("moneo", function () {
         async.series([person1.save, person1.save, function (next) {
             graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n'}, next);
         }], function (err, res) {
-            expect(err).toBeUndefined();
             var nodes = res[2];
-            console.log(JSON.stringify(nodes));
+            console.log(err,res);
             expect(nodes.length).toBe(1);
             done(err);
         });
