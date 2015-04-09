@@ -1,23 +1,14 @@
-#sudo: required
 language: node_js
 node_js:
   - "0.10"
 services:
   - mongodb
-env:
-     - DEBUG=neo4j
 jdk:
-    - oraclejdk7
-
-matrix:
-    allow_failures:
-        - node_js: "0.11"
-
+  - oraclejdk7
 before_install:
-    # install Neo4j locally:
-    - wget dist.neo4j.org/neo4j-community-2.2.0-unix.tar.gz
-    - tar -xzf neo4j-community-2.2.0-unix.tar.gz
-    - sed -i.bak s/dbms.security.auth_enabled=true/dbms.security.auth_enabled=false/g neo4j-community-2.2.0/conf/neo4j-server.properties
-    #- cat neo4j-community-2.2.0/conf/neo4j-server.properties | sed '$a/dbms.security.auth_enabled=false' > neo4j-community-2.2.0/conf/neo4j-server.properties
-    - echo "$(cat neo4j-community-2.2.0/conf/neo4j-server.properties)"
-    - neo4j-community-2.2.0/bin/neo4j start
+  # install Neo4j locally:
+  - wget dist.neo4j.org/neo4j-community-2.2.0-unix.tar.gz
+  - tar -xzf neo4j-community-2.2.0-unix.tar.gz
+  - sed -i.bak s/dbms.security.auth_enabled=true/dbms.security.auth_enabled=false/g neo4j-community-2.2.0/conf/neo4j-server.properties
+  - echo "$(cat neo4j-community-2.2.0/conf/neo4j-server.properties)"
+  - neo4j-community-2.2.0/bin/neo4j start
