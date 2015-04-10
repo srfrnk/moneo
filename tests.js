@@ -7,10 +7,15 @@ var async = require("async");
 var mongoose = require('mongoose');
 var neo4j = require("neo4j");
 
- mongoose.set('debug', function (coll, method, query, doc, options) {
- console.log();
- console.log(coll, method, query, doc, options);
- });
+
+//jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60 * 60;
+
+/*
+mongoose.set('debug', function (coll, method, query, doc, options) {
+    console.log();
+    console.log(coll, method, query, doc, options);
+});
+*/
 
 var moneo = require("./index");
 
@@ -43,9 +48,9 @@ describe("moneo", function () {
     });
 
     PersonSchema = mongoose.Schema({
-        firstName: {type:String,nodeProperty:true},
-        lastName: {type:String,nodeProperty:true},
-        mongoSpecificValue1: {type:String,nodeProperty:false},
+        firstName: {type: String, nodeProperty: true},
+        lastName: {type: String, nodeProperty: true},
+        mongoSpecificValue1: {type: String, nodeProperty: false},
         mongoSpecificValue2: String,
         takenClasses: [{
             class: {type: mongoose.Schema.ObjectId, ref: 'Class'},
@@ -55,8 +60,12 @@ describe("moneo", function () {
     });
 
     ClassSchema = mongoose.Schema({
-        title: {type:String,nodeProperty:true},
-        teacher: {type: mongoose.Schema.ObjectId, ref: 'Person',relName:"Taught By"}
+        title: {type: String, nodeProperty: true},
+        teacher: {type: mongoose.Schema.ObjectId, ref: 'Person', relName: "Taught By"},
+        supervisor: {
+            person: {type: mongoose.Schema.ObjectId, ref: 'Person', relName: "Supervised By"},
+            startDate: Date
+        }
     });
 
     PersonSchema.plugin(moneo);
@@ -125,7 +134,14 @@ describe("moneo", function () {
         async.series([person1.save, person1.save, function (next) {
             graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n'}, next);
         }], function (err, res) {
-            expect(res[2].length).toBe(1);
+            try {
+                expect(res[2].length).toBe(1);
+            }
+            catch (err) {
+                expect(err).toBeNull();
+            }
+            finally {
+            }
             done(err);
         });
     });
@@ -140,14 +156,21 @@ describe("moneo", function () {
         async.series([person1.save, function (next) {
             graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'}) return n limit 1'}, next);
         }], function (err, res) {
-            var node=res[1][0].n;
-            expect(node.properties.firstName).toBe('Neil');
-            expect(node.properties.lastName).toBe('Young');
+            try {
+                var node = res[1][0].n;
+                expect(node.properties.firstName).toBe('Neil');
+                expect(node.properties.lastName).toBe('Young');
+            }
+            catch (err) {
+                expect(err).toBeNull();
+            }
+            finally {
+            }
             done(err);
         });
     });
 
-    it('should create graph reps for simple DBRef property', function (done) {
+    it('should create relation for simple DBRef property', function (done) {
         var person1 = new PersonModel();
         person1.firstName = "Neil";
         person1.lastName = "Young";
@@ -159,11 +182,44 @@ describe("moneo", function () {
         async.series([person1.save, class1.save, function (next) {
             graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'})-[r:Taught_By]-(c:Class) return n,r,c'}, next);
         }], function (err, res) {
-            console.log(err);
-            expect(res[2].length).toBe(1);
+            try {
+                expect(res[2].length).toBe(1);
+            }
+            catch (err) {
+                expect(err).toBeNull();
+            }
+            finally {
+            }
             done();
         });
     });
+
+    it('should create relation with props for simple DBRef property', function (done) {
+        var person1 = new PersonModel();
+        person1.firstName = "Neil";
+        person1.lastName = "Young";
+
+        var class1 = new ClassModel();
+        class1.title = "Rock'nRoll 101";
+        class1.supervisor.person = person1;
+        class1.supervisor.startDate = new Date();
+
+        async.series([person1.save, class1.save, function (next) {
+            graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'})-[r:Supervised_By]-(c:Class) return n,r,c'}, next);
+        }], function (err, res) {
+            try {
+                expect(res[2].length).toBe(1);
+                expect(res[2][0].r.properties.startDate).toBeDefined();
+            }
+            catch (err) {
+                expect(err).toBeNull();
+            }
+            finally {
+            }
+            done();
+        });
+    });
+
     /*
      it("saves", function (done) {
      var person1 = new PersonModel();

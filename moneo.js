@@ -37,25 +37,39 @@ module.exports = function (schema, options) {
     function createPropString(props, varName) {
         return Object.keys(props).map(function (key) {
             var val = props[key];
-            if (val instanceof String || typeof val === 'string') {
+            if(typeof val === 'number')
+            {
+                val=val.toString();
+            }
+            else if (val instanceof String || typeof val === 'string') {
                 val = val.replace('\'', '\\\'');
                 val = '\'' + val + '\'';
             }
-            else if (val instanceof Object) {
-                val = util.format(val);
-            }
             else if (val instanceof Array) {
                 val = util.format(val);
+                val = val.replace('\'', '\\\'');
             }
-            else {
-                val = val.toString();
+            else if (val instanceof Date) {
+                val = '\''+val.toISOString()+'\'';
             }
-            return varName + '.' + key.toString() + '=' + val;
+            else if (val instanceof Object) {
+                val = '\''+util.format(val)+'\'';
+                val = val.replace('\'', '\\\'');
+            }
+            else if (typeof val !== 'undefined') {
+                val = '\''+val.toString()+'\'';
+                val = val.replace('\'', '\\\'');
+            }
+            else
+            {
+                return '';
+            }
+            return varName + '.' + key + '=' + val;
         }).join(',');
     }
 
     function normalizeType(type) {
-        return type.replace(/[\s-]/g,'_');
+        return type.replace(/[\s-]/g, '_');
     }
 
     function createNode(type, mongoId, mongoCol, mongoModel, props, next) {
@@ -65,10 +79,10 @@ module.exports = function (schema, options) {
                 'mongoId:\'' + mongoId.toHexString() + '\',' +
                 'mongoCol:\'' + mongoCol + '\',' +
                 'mongoModel:\'' + mongoModel + '\'' +
-                '}' + ' )' +
+                '}' + ' ) ' +
                 (propsStr.length > 0 ? (' on create set ' + propsStr) : '') +
                 (propsStr.length > 0 ? (' on match set ' + propsStr) : '') +
-                ' return n'
+                'return n'
             },
             function (err, result) {
                 next(err, result)
@@ -80,8 +94,8 @@ module.exports = function (schema, options) {
         return graphDb.cypher({
                 query: 'match ' +
                 '(n {' + 'mongoId:\'' + mongoId1.toHexString() + '\'' + '}' + ' ),' +
-                '(m {' + 'mongoId:\'' + mongoId2.toHexString() + '\'' + '}' + ' )' +
-                'merge (n)-[r:' + normalizeType(type) + ']->(m)' +
+                '(m {' + 'mongoId:\'' + mongoId2.toHexString() + '\'' + '}' + ' ) ' +
+                'merge (n)-[r:' + normalizeType(type) + ']->(m) ' +
                 (propsStr.length > 0 ? (' on create set ' + propsStr) : '') +
                 (propsStr.length > 0 ? (' on match set ' + propsStr) : '') +
                 ' return r'
@@ -95,7 +109,7 @@ module.exports = function (schema, options) {
         return graphDb.cypher({
                 query: 'match (n {' +
                 'mongoId:\'' + mongoId.toHexString() + '\'' +
-                '}' + ' )' +
+                '}' + ' ) ' +
                 'return n limit 1'
             },
             function (err, result) {
@@ -116,6 +130,26 @@ module.exports = function (schema, options) {
         return props;
     }
 
+    function parsePath(path) {
+        return path.split('.');
+    }
+
+    function pathString(pathArray) {
+        return pathArray.join('.');
+    }
+
+    function pathPrefix(path) {
+        return pathString(parsePath(path).slice(0, -1));
+    }
+
+    function pathName(path) {
+        return parsePath(path).slice(-1)[0];
+    }
+
+    function samePrefix(path1, path2) {
+        return pathPrefix(path1) === pathPrefix(path2);
+    }
+
     schema.post('save', function (doc, next) {
         var properties = getProperties();
 
@@ -127,7 +161,7 @@ module.exports = function (schema, options) {
                 }).map(function (prop) {
                     return prop.path;
                 }).reduce(function (obj, prop) {
-                    obj[prop] = doc._doc[prop];
+                    obj[pathName(prop)] = doc.get(prop);
                     return obj;
                 }, {});
                 createNode(doc.constructor.modelName, doc._id, doc.constructor.collection.name, doc.constructor.modelName, docProps, next);
@@ -137,14 +171,26 @@ module.exports = function (schema, options) {
                 var refs = properties.filter(function (prop) {
                     return !!prop.options.ref;
                 }).map(function (prop) {
-                    return {path: prop.path, name: prop.options.relName || "Relation", value: doc._doc[prop.path]};
+                    return {
+                        path: prop.path,
+                        name: prop.options.relName || "Relation",
+                        value: doc.get(prop.path),
+                        props: properties.filter(function (prop1) {
+                            return samePrefix(prop.path, prop1.path) && prop.path!==prop1.path && pathPrefix(prop.path)!=='';
+                        }).map(function (prop) {
+                            return prop.path;
+                        }).reduce(function (obj, prop) {
+                            obj[pathName(prop)] = doc.get(prop);
+                            return obj;
+                        }, {})
+                    };
                 }).filter(function (ref) {
                     return !!ref.value;
                 });
 
                 async.mapSeries(refs, function (ref, next) {
                     var value = ref.value instanceof mongoose.Types.ObjectId ? ref.value : ref.value._id;
-                    createRelation(ref.name,doc._id,value,{},next);
+                    createRelation(ref.name, doc._id, value, ref.props, next);
                 }, next);
             }
         ], next);
@@ -164,3 +210,4 @@ module.exports = function (schema, options) {
         next();
     });
 };
+
