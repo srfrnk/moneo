@@ -7,17 +7,21 @@ var async = require("async");
 var mongoose = require('mongoose');
 var neo4j = require("neo4j");
 
-
+/*
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60 * 60;
+*/
 
 /*
- mongoose.set('debug', function (coll, method, query, doc, options) {
- console.log();
- console.log(coll, method, query, doc, options);
- });
- */
+mongoose.set('debug', function (coll, method, query, doc, options) {
+    console.log();
+    if (coll !== 'Neo4J Request') {
+        coll='Mongo Request: '+coll;
+    }
+    console.log(coll, method, query, doc, options);
+});
+*/
 
-var moneo = require("./index");
+var moneo = require("./index")({url:'http://localhost:7474'});
 
 describe("moneo", function () {
     var PersonSchema, PersonModel, ClassSchema, ClassModel;
@@ -295,6 +299,13 @@ describe("moneo", function () {
             }
             finally {
             }
+            done();
+        });
+    });
+
+    it('should run a cypher query',function(done){
+        PersonModel.cypherQuery({query: 'match (n:Person)-[r:Takes_Class]-(c:Class) return n,r,c'}, function (err, res) {
+            expect(res.length).toBeGreaterThan(0);
             done();
         });
     });
