@@ -37,34 +37,30 @@ module.exports = function (schema, options) {
     function createPropString(props, varName) {
         return Object.keys(props).map(function (key) {
             var val = props[key];
-            if(typeof val === 'number')
-            {
-                val=val.toString();
+            if (typeof val === 'number') {
+                val = val.toString();
             }
             else if (val instanceof String || typeof val === 'string') {
-                val = val.replace('\'', '\\\'');
-                val = '\'' + val + '\'';
+                val = '\'' + val.replace('\'', '\\\'') + '\'';
             }
             else if (val instanceof Array) {
-                val = util.format(val);
-                val = val.replace('\'', '\\\'');
+                val = util.format(val).replace('\'', '\\\'');
             }
             else if (val instanceof Date) {
-                val = '\''+val.toISOString()+'\'';
+                val = '\'' + val.toISOString() + '\'';
             }
             else if (val instanceof Object) {
-                val = '\''+util.format(val)+'\'';
-                val = val.replace('\'', '\\\'');
+                val = '\'' + util.format(val).replace('\'', '\\\'') + '\'';
             }
             else if (typeof val !== 'undefined') {
-                val = '\''+val.toString()+'\'';
-                val = val.replace('\'', '\\\'');
+                val = '\'' + val.toString().replace('\'', '\\\'') + '\'';
             }
-            else
-            {
+            else {
                 return '';
             }
             return varName + '.' + key + '=' + val;
+        }).filter(function (prop) {
+            return prop.length > 0;
         }).join(',');
     }
 
@@ -153,6 +149,84 @@ module.exports = function (schema, options) {
     schema.post('save', function (doc, next) {
         var properties = getProperties();
 
+        function findSimpleRefs() {
+            return properties.filter(function (prop) {
+                return !!prop.options.ref;
+            }).map(function (prop) {
+                var props = properties.filter(function (prop1) {
+                    return samePrefix(prop.path, prop1.path) && prop.path !== prop1.path && pathPrefix(prop.path) !== '';
+                }).map(function (prop) {
+                    return prop.path;
+                }).reduce(function (obj, prop) {
+                    obj[pathName(prop)] = doc.get(prop);
+                    return obj;
+                }, {});
+                return {
+                    name: prop.options.relName || "Relation",
+                    props: props,
+                    value: doc.get(prop.path)
+                };
+            });
+        }
+
+        function findArrayRefs() {
+            return properties.filter(function (prop) {
+                return (prop.options.type instanceof Array && !!prop.options.type[0].ref)
+            }).map(function (prop) {
+                var values = doc.get(prop.path).map(function (value) {
+                    return {
+                        props: {},
+                        value: value
+                    };
+                }).filter(function (ref) {
+                    return ref.value !== null && typeof ref.value !== 'undefined';
+                });
+
+                return {
+                    name: prop.options.type[0].relName || "Relation",
+                    value: values,
+                    isArray: true
+                };
+            });
+        }
+
+        function findNestedArrayRefs() {
+            return properties.filter(function (prop) {
+                return (prop.options.type instanceof Array && Object.keys(prop.options.type[0]).some(function (key) {
+                    var type = prop.options.type[0][key];
+                    return !!type.ref;
+                }))
+            }).map(function (prop) {
+                var nestedType = prop.options.type[0];
+                var nestedTypeProps = Object.keys(nestedType).map(function (key) {
+                    return {path: key, type: prop.options.type[0][key]};
+                });
+                var relProp = nestedTypeProps.filter(function (nProp) {
+                    return !!nProp.type.ref;
+                })[0];
+
+                var values = doc.get(prop.path).map(function (value) {
+                    return {
+                        props: nestedTypeProps.filter(function (nProp) {
+                            return nProp!==relProp;
+                        }).reduce(function (obj,nProp) {
+                            obj[nProp.path]=value[nProp.path];
+                            return obj;
+                        },{}),
+                        value: value[relProp.path]
+                    };
+                }).filter(function (ref) {
+                    return ref.value !== null && typeof ref.value !== 'undefined';
+                });
+
+                return {
+                    name: relProp.type.relName || "Relation",
+                    value: values,
+                    isArray: true
+                };
+            });
+        }
+
         async.series([
             function (next) {
                 //Merge node with params:
@@ -168,29 +242,26 @@ module.exports = function (schema, options) {
             },
             function (next) {
                 //Merge relations:
-                var refs = properties.filter(function (prop) {
-                    return !!prop.options.ref;
-                }).map(function (prop) {
-                    return {
-                        path: prop.path,
-                        name: prop.options.relName || "Relation",
-                        value: doc.get(prop.path),
-                        props: properties.filter(function (prop1) {
-                            return samePrefix(prop.path, prop1.path) && prop.path!==prop1.path && pathPrefix(prop.path)!=='';
-                        }).map(function (prop) {
-                            return prop.path;
-                        }).reduce(function (obj, prop) {
-                            obj[pathName(prop)] = doc.get(prop);
-                            return obj;
-                        }, {})
-                    };
-                }).filter(function (ref) {
-                    return !!ref.value;
+
+                var refs = findSimpleRefs();
+                refs = refs.concat(findArrayRefs());
+                refs = refs.concat(findNestedArrayRefs());
+                refs = refs.filter(function (ref) {
+                    return ref.value !== null && typeof ref.value !== 'undefined';
                 });
 
                 async.mapSeries(refs, function (ref, next) {
-                    var value = ref.value instanceof mongoose.Types.ObjectId ? ref.value : ref.value._id;
-                    createRelation(ref.name, doc._id, value, ref.props, next);
+                    if (ref.isArray) {
+                        var value = ref.value;
+                        async.mapSeries(value, function (v, next) {
+                            var id = v.value instanceof mongoose.Types.ObjectId ? v.value : v.value._id;
+                            createRelation(ref.name, doc._id, id, v.props, next);
+                        }, next);
+                    }
+                    else {
+                        var id = ref.value instanceof mongoose.Types.ObjectId ? ref.value : ref.value._id;
+                        createRelation(ref.name, doc._id, id, ref.props, next);
+                    }
                 }, next);
             }
         ], next);

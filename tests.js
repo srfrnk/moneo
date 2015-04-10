@@ -8,14 +8,14 @@ var mongoose = require('mongoose');
 var neo4j = require("neo4j");
 
 
-//jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60 * 60;
+jasmine.DEFAULT_TIMEOUT_INTERVAL = 1000 * 60 * 60;
 
 /*
-mongoose.set('debug', function (coll, method, query, doc, options) {
-    console.log();
-    console.log(coll, method, query, doc, options);
-});
-*/
+ mongoose.set('debug', function (coll, method, query, doc, options) {
+ console.log();
+ console.log(coll, method, query, doc, options);
+ });
+ */
 
 var moneo = require("./index");
 
@@ -53,7 +53,7 @@ describe("moneo", function () {
         mongoSpecificValue1: {type: String, nodeProperty: false},
         mongoSpecificValue2: String,
         takenClasses: [{
-            class: {type: mongoose.Schema.ObjectId, ref: 'Class'},
+            class: {type: mongoose.Schema.ObjectId, ref: 'Class',relName:'Takes Class'},
             grade: Number,
             year: Number
         }]
@@ -65,7 +65,8 @@ describe("moneo", function () {
         supervisor: {
             person: {type: mongoose.Schema.ObjectId, ref: 'Person', relName: "Supervised By"},
             startDate: Date
-        }
+        },
+        students: [{type: mongoose.Schema.ObjectId, ref: 'Person', relName: 'Teaches'}]
     });
 
     PersonSchema.plugin(moneo);
@@ -220,37 +221,81 @@ describe("moneo", function () {
         });
     });
 
-    /*
-     it("saves", function (done) {
-     var person1 = new PersonModel();
-     person1.firstName = "Neil";
-     person1.lastName = "Young";
+    it('should create relations for array of DBRef property', function (done) {
+        var person1 = new PersonModel();
+        person1.firstName = "Neil";
+        person1.lastName = "Young";
+        var person2 = new PersonModel();
+        person1.firstName = "Lynard";
+        person1.lastName = "Skinard";
+        var person3 = new PersonModel();
+        person1.firstName = "Lou";
+        person1.lastName = "Reed";
 
-     var person2 = new PersonModel();
-     person2.firstName = "Lynard";
-     person2.lastName = "Skynard";
+        var class1 = new ClassModel();
+        class1.title = "Rock'nRoll 101";
+        class1.students = [person1, person2, person3];
 
-     var class1 = new ClassModel();
-     class1.title = "Rock'nRoll 101";
-     class1.teacher = person2;
+        async.series([person1.save, person2.save, person3.save, class1.save, function (next) {
+            graphDb.cypher({query: 'match (n:Class {mongoId:\'' + class1._id.toHexString() + '\'})-[r:Teaches]-(c:Person) return n,r,c'}, next);
+        }], function (err, res) {
+            try {
+                expect(res[4].length).toBe(3);
+            }
+            catch (err) {
+                expect(err).toBeNull();
+            }
+            finally {
+            }
+            done();
+        });
+    });
 
-     person1.takenClasses = [{
-     class: class1,
-     grade: 60,
-     year: 1969
-     }];
+    it('should create relations with props for nested doc array with DBRef property', function (done) {
+        var person1 = new PersonModel();
+        person1.firstName = "Lynard";
+        person1.lastName = "Skinard";
 
-     async.series([person1.save, person2.save, class1.save], function (err, res) {
-     expect(person1._neo4j).toBeTruthy();
-     expect(person2._neo4j).toBeTruthy();
-     expect(class1._neo4j).toBeTruthy();
+        var class1 = new ClassModel();
+        class1.title = "Rock'nRoll 101";
 
-     expect(person1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
-     expect(person2._id instanceof mongoose.Types.ObjectId).toBeTruthy();
-     expect(class1._id instanceof mongoose.Types.ObjectId).toBeTruthy();
+        var class2 = new ClassModel();
+        class2.title = "Advanced Rock'nRoll";
 
-     done();
-     });
-     });
-     */
+        var class3 = new ClassModel();
+        class3.title = "Country 101";
+
+        person1.takenClasses.push({
+            class: class1,
+            grade: 90,
+            year: 1977
+        });
+
+        person1.takenClasses.push({
+            class: class2,
+            grade: 80,
+            year: 1969
+        });
+
+        person1.takenClasses.push({
+            class: class3,
+            grade: 89,
+            year: 1950
+        });
+
+        async.series([class1.save, class2.save, class3.save, person1.save, function (next) {
+            graphDb.cypher({query: 'match (n:Person {mongoId:\'' + person1._id.toHexString() + '\'})-[r:Takes_Class]-(c:Class) return n,r,c'}, next);
+        }], function (err, res) {
+            expect(err).not.toBeNull();
+            try {
+                expect(res[4].length).toBe(3);
+            }
+            catch (err) {
+                expect(err).toBeNull();
+            }
+            finally {
+            }
+            done();
+        });
+    });
 });
