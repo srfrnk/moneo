@@ -11,6 +11,15 @@
     "mongodb",
     "neo4j"
   ],
+  "bugs":{ 
+  	"url" : "https://github.com/srfrnk/moneo/issues",
+  	"email" : "srfrnk@gmail.com"
+  },
+  "repository" :
+  { 
+  	"type" : "git",
+  	"url" : "https://github.com/srfrnk/moneo"
+  },
   "author": "srfrnk@gmail.com",
   "license": "MIT",
   "dependencies": {
