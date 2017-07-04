@@ -3,6 +3,8 @@ var neo4j = require("neo4j");
 var async = require("async");
 var util = require("util");
 
+mongoose.Promise = global.Promise;
+
 module.exports = function (neo4jOptions) {
     neo4jOptions = neo4jOptions || {};
     neo4jOptions.url = neo4jOptions.url || 'http://localhost:7474';
