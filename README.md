@@ -1,6 +1,9 @@
 # moneo
 Mongoose -> Neo4J plugin / middleware
+
 [![Build Status](https://travis-ci.org/srfrnk/moneo.svg)](https://travis-ci.org/srfrnk/moneo)
+
+[![MIT Licence](https://badges.frapsoft.com/os/mit/mit.svg?v=103)](https://opensource.org/licenses/mit-license.php)
 
 ## Required: 
 - node / iojs
@@ -100,6 +103,9 @@ SomeModel.cypherQuery({query: 'match (n:Person)-[r:Takes_Class]-(c:Class) return
 
 ```
 
+## Demo project
+[test-for-moneo](https://github.com/akarsh/test-for-mone) project demonstrates the usage of moneo. It covers the above mentioned functionality examples.
+
 ## Contributions
 ### Since this is very new code.... I expect bugs.... so please open issues!
 
@@ -107,6 +113,3 @@ SomeModel.cypherQuery({query: 'match (n:Person)-[r:Takes_Class]-(c:Class) return
 * Keep my code style
 * Add/maintain tests
 * Don't break what you can't fix :)
-
-## License: 
-MIT
