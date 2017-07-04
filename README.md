@@ -104,7 +104,7 @@ SomeModel.cypherQuery({query: 'match (n:Person)-[r:Takes_Class]-(c:Class) return
 ```
 
 ## Demo project
-[test-for-moneo](https://github.com/akarsh/test-for-mone) project demonstrates the usage of moneo. It covers the above mentioned functionality examples.
+[test-for-moneo](https://github.com/akarsh/test-for-moneo) project demonstrates the usage of moneo. It covers the above mentioned functionality examples.
 
 ## Contributions
 ### Since this is very new code.... I expect bugs.... so please open issues!
