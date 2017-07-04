@@ -28,7 +28,7 @@ describe("moneo", function () {
     var graphDb;
 
     beforeAll(function (done) {
-        mongoose.connect('mongodb://localhost/test');
+        mongoose.connect('mongodb://localhost/test',{useMongoClient:true});
         graphDb = new neo4j.GraphDatabase({url: 'http://localhost:7474'});
         async.series([
                 function (next) {
